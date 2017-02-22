@@ -3066,7 +3066,7 @@ static int rk_fb_blank(int blank_mode, struct fb_info *info)
 	mutex_lock(&dev_drv->switch_screen);
 #if defined(CONFIG_RK_HDMI)
 	if ((rk_fb->disp_mode == ONE_DUAL) &&
-	    (hdmi_get_hotplug() == HDMI_HPD_ACTIVED)) {
+	    (hdmi_get_hotplug() == HDMI_HPD_ACTIVATED)) {
 		pr_info("hdmi is connect , not blank lcdc\n");
 	} else
 #endif
@@ -3776,6 +3776,15 @@ int rk_fb_switch_screen(struct rk_screen *screen, int enable, int lcdc_id)
 		dev_drv->ops->load_screen(dev_drv, 0);
 	}
 	kobject_uevent_env(&dev_drv->dev->kobj, KOBJ_CHANGE, envp);
+
+	if (dev_drv->cur_screen->width && dev_drv->cur_screen->height) {
+		/* for vr auto dp support */
+		info = rk_fb->fb[dev_drv->fb_index_base];
+		info->var.width = dev_drv->cur_screen->width;
+		info->var.height = dev_drv->cur_screen->height;
+		pr_info("%s:info->var.width=%d, info->var.height=%d\n",
+			__func__, info->var.width, info->var.height);
+	}
 
 	hdmi_switch_state = 1;
 	load_screen = true;

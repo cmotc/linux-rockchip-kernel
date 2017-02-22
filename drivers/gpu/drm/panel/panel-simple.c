@@ -271,6 +271,12 @@ static int panel_simple_get_modes(struct drm_panel *panel)
 	struct panel_simple *p = to_panel_simple(panel);
 	int num = 0;
 
+	/* add device node plane modes */
+	num += panel_simple_of_get_native_mode(p);
+
+	/* add hard-coded panel modes */
+	num += panel_simple_get_fixed_modes(p);
+
 	/* probe EDID if a DDC bus is available */
 	if (p->ddc) {
 		struct edid *edid = drm_get_edid(panel->connector, p->ddc);
@@ -280,12 +286,6 @@ static int panel_simple_get_modes(struct drm_panel *panel)
 			kfree(edid);
 		}
 	}
-
-	/* add hard-coded panel modes */
-	num += panel_simple_get_fixed_modes(p);
-
-	/* add device node plane modes */
-	num += panel_simple_of_get_native_mode(p);
 
 	return num;
 }
@@ -324,37 +324,32 @@ static int panel_simple_probe(struct device *dev, const struct panel_desc *desc)
 	struct device_node *backlight, *ddc;
 	struct panel_simple *panel;
 	struct panel_desc *of_desc;
+	u32 val;
 	int err;
 
 	panel = devm_kzalloc(dev, sizeof(*panel), GFP_KERNEL);
 	if (!panel)
 		return -ENOMEM;
 
-	if (!desc) {
-		u32 val;
-
+	if (!desc)
 		of_desc = devm_kzalloc(dev, sizeof(*of_desc), GFP_KERNEL);
-		if (!of_desc)
-			return -ENOMEM;
-		of_desc->num_modes = 0;
-		if (!of_property_read_u32(dev->of_node, "bus-format", &val))
-			of_desc->bus_format = val;
-		else
-			of_desc->bus_format = MEDIA_BUS_FMT_RGB888_1X24;
-		if (!of_property_read_u32(dev->of_node, "delay,prepare", &val))
-			of_desc->delay.prepare = val;
-		if (!of_property_read_u32(dev->of_node, "delay,enable", &val))
-			of_desc->delay.enable = val;
-		if (!of_property_read_u32(dev->of_node, "delay,disable", &val))
-			of_desc->delay.disable = val;
-		if (!of_property_read_u32(dev->of_node,
-					  "delay,unprepare", &val))
-			of_desc->delay.unprepare = val;
-	}
+	else
+		of_desc = devm_kmemdup(dev, desc, sizeof(*of_desc), GFP_KERNEL);
+
+	if (!of_property_read_u32(dev->of_node, "bus-format", &val))
+		of_desc->bus_format = val;
+	if (!of_property_read_u32(dev->of_node, "delay,prepare", &val))
+		of_desc->delay.prepare = val;
+	if (!of_property_read_u32(dev->of_node, "delay,enable", &val))
+		of_desc->delay.enable = val;
+	if (!of_property_read_u32(dev->of_node, "delay,disable", &val))
+		of_desc->delay.disable = val;
+	if (!of_property_read_u32(dev->of_node, "delay,unprepare", &val))
+		of_desc->delay.unprepare = val;
 
 	panel->enabled = false;
 	panel->prepared = false;
-	panel->desc = desc ? desc : of_desc;
+	panel->desc = of_desc;
 	panel->dev = dev;
 
 	panel->supply = devm_regulator_get(dev, "power");
@@ -577,15 +572,15 @@ static const struct panel_desc auo_b116xw03 = {
 };
 
 static const struct drm_display_mode auo_b125han03_mode = {
-	.clock = 141000,
+	.clock = 146900,
 	.hdisplay = 1920,
-	.hsync_start = 1920 + 88,
-	.hsync_end = 1920 + 88 + 60,
-	.htotal = 1920 + 88 + 60 + 36,
+	.hsync_start = 1920 + 48,
+	.hsync_end = 1920 + 48 + 32,
+	.htotal = 1920 + 48 + 32 + 140,
 	.vdisplay = 1080,
-	.vsync_start = 1080 + 12,
-	.vsync_end = 1080 + 12 + 4,
-	.vtotal = 1080 + 12 + 4 + 20,
+	.vsync_start = 1080 + 2,
+	.vsync_end = 1080 + 2 + 5,
+	.vtotal = 1080 + 2 + 5 + 57,
 	.vrefresh = 60,
 	.flags = DRM_MODE_FLAG_NVSYNC | DRM_MODE_FLAG_NHSYNC,
 };

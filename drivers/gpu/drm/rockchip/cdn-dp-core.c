@@ -265,6 +265,11 @@ static int cdn_dp_connector_mode_valid(struct drm_connector *connector,
 	struct cdn_dp_device *dp = connector_to_dp(connector);
 	struct drm_display_info *display_info = &dp->connector.display_info;
 	u32 requested, actual, rate, sink_max, source_max = 0;
+	struct drm_encoder *encoder = connector->encoder;
+	enum drm_mode_status status = MODE_OK;
+	struct drm_device *dev = connector->dev;
+	struct rockchip_drm_private *priv = dev->dev_private;
+	struct drm_crtc *crtc;
 	u8 lanes, bpc;
 
 	/* If DP is disconnected, every mode is invalid */
@@ -303,6 +308,40 @@ static int cdn_dp_connector_mode_valid(struct drm_connector *connector,
 				  "requested=%d, actual=%d, clock=%d\n",
 				  requested, actual, mode->clock);
 		return MODE_CLOCK_HIGH;
+	}
+
+	if (!encoder) {
+		const struct drm_connector_helper_funcs *funcs;
+
+		funcs = connector->helper_private;
+		if (funcs->atomic_best_encoder)
+			encoder = funcs->atomic_best_encoder(connector,
+							     connector->state);
+		else
+			encoder = funcs->best_encoder(connector);
+	}
+
+	if (!encoder || !encoder->possible_crtcs)
+		return MODE_BAD;
+	/*
+	 * ensure all drm display mode can work, if someone want support more
+	 * resolutions, please limit the possible_crtc, only connect to
+	 * needed crtc.
+	 */
+	drm_for_each_crtc(crtc, connector->dev) {
+		int pipe = drm_crtc_index(crtc);
+		const struct rockchip_crtc_funcs *funcs =
+						priv->crtc_funcs[pipe];
+
+		if (!(encoder->possible_crtcs & drm_crtc_mask(crtc)))
+			continue;
+		if (!funcs || !funcs->mode_valid)
+			continue;
+
+		status = funcs->mode_valid(crtc, mode,
+					   DRM_MODE_CONNECTOR_HDMIA);
+		if (status != MODE_OK)
+			return status;
 	}
 
 	return MODE_OK;
@@ -654,8 +693,13 @@ static void cdn_dp_encoder_enable(struct drm_encoder *encoder)
 	}
 out:
 	mutex_unlock(&dp->lock);
-	if (!ret)
+	if (!ret) {
+#ifdef CONFIG_SWITCH
+		switch_set_state(&dp->switchdev, 1);
+#else
 		hdmi_event_connect(dp->dev);
+#endif
+	}
 }
 
 static void cdn_dp_encoder_disable(struct drm_encoder *encoder)
@@ -672,7 +716,11 @@ static void cdn_dp_encoder_disable(struct drm_encoder *encoder)
 		}
 	}
 	mutex_unlock(&dp->lock);
+#ifdef CONFIG_SWITCH
+	switch_set_state(&dp->switchdev, 0);
+#else
 	hdmi_event_disconnect(dp->dev);
+#endif
 
 	/*
 	 * In the following 2 cases, we need to run the event_work to re-enable
@@ -1070,6 +1118,11 @@ static int cdn_dp_bind(struct device *dev, struct device *master, void *data)
 
 	drm_connector_helper_add(connector, &cdn_dp_connector_helper_funcs);
 
+#ifdef CONFIG_SWITCH
+	dp->switchdev.name = "hdmi";
+	switch_dev_register(&dp->switchdev);
+#endif
+
 	ret = drm_mode_connector_attach_encoder(connector, encoder);
 	if (ret) {
 		DRM_ERROR("failed to attach connector and encoder\n");
@@ -1110,6 +1163,10 @@ static void cdn_dp_unbind(struct device *dev, struct device *master, void *data)
 	struct cdn_dp_device *dp = dev_get_drvdata(dev);
 	struct drm_encoder *encoder = &dp->encoder;
 	struct drm_connector *connector = &dp->connector;
+
+#ifdef CONFIG_SWITCH
+	switch_dev_unregister(&dp->switchdev);
+#endif
 
 	cancel_work_sync(&dp->event_work);
 	platform_device_unregister(dp->audio_pdev);

@@ -184,6 +184,13 @@
 		};
 	};
 
+	sound {
+		compatible = "rockchip,cdndp-sound";
+		rockchip,cpu = <&i2s2>;
+		rockchip,codec = <&cdn_dp>;
+		status = "okay";
+	};
+
 	spdif-sound {
 		compatible = "simple-audio-card";
 		simple-audio-card,name = "rockchip,spdif";
@@ -288,9 +295,11 @@
 		compatible = "rockchip,uboot-charge";
 		rockchip,uboot-charge-on = <1>;
 		rockchip,android-charge-on = <0>;
-		rockchip,uboot-exit-charge-level = <3>;
+		rockchip,uboot-exit-charge-level = <2>;
 		rockchip,uboot-low-power-level = <1>;
 		rockchip,uboot-charge-brightness = <0>;
+		max-input-voltage = <20000>;
+		max-input-current = <6000>;
 	};
 
 	vibrator {
@@ -407,6 +416,10 @@
 	};
 };
 
+&edp_in_vopl {
+	status = "disabled";
+};
+
 &emmc_phy {
 	status = "okay";
 };
@@ -420,6 +433,15 @@
 	status = "disabled";
 };
 
+&cdn_dp {
+	status = "okay";
+	extcon = <&fusb0>, <&fusb1>;
+};
+
+&dp_in_vopb {
+	status = "disabled";
+};
+
 &i2s0 {
 	status = "okay";
 	rockchip,i2s-broken-burst-len;
@@ -430,6 +452,7 @@
 };
 
 &i2s2 {
+	status = "okay";
 	#sound-dai-cells = <0>;
 };
 
@@ -763,6 +786,8 @@
 		int-n-gpios = <&gpio1 GPIO_B5 GPIO_ACTIVE_HIGH>;
 		discharge-gpios = <&gpio0 GPIO_B5 GPIO_ACTIVE_HIGH>;
 		charge-dev = <&bq25700>;
+		support-uboot-charge = <1>;
+		port-num = <1>;
 		status = "okay";
 	};
 };
@@ -782,6 +807,8 @@
 		int-n-gpios = <&gpio1 GPIO_A2 GPIO_ACTIVE_HIGH>;
 		discharge-gpios = <&gpio0 GPIO_B4 GPIO_ACTIVE_HIGH>;
 		charge-dev = <&bq25700>;
+		support-uboot-charge = <1>;
+		port-num = <0>;
 		status = "okay";
 	};
 };
@@ -1021,7 +1048,7 @@
 
 	hallsensor {
 		mh248_irq_gpio: mh248-irq-gpio {
-			rockchip,pins = <0 GPIO_A2 RK_FUNC_GPIO &pcfg_pull_up>;
+			rockchip,pins = <0 GPIO_A1 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 
